@@ -1,0 +1,93 @@
+# 데이터 분석에 필요한 패키지 설치
+install.packages("ggplot2")
+install.packages("foreign")
+install.packages("dplyr")
+install.packages("readxl")
+install.packages("plotly")
+
+# 설치한 패키지 실행하기
+library(foreign)
+library(ggplot2)
+library(dplyr)
+library(readxl)
+library(plotly)
+
+# 데이터를 불러오기(2015년 한국 성별에 따른 임금 데이터)
+raw_welfare <- read.spss(file= "Koweps_hpc10_2015_beta1.sav",to.data.frame=T)
+# 데이터 정제시 만약을 위해 복사본 만들기
+welfare <- raw_welfare
+
+# 데이터 확인
+welfare
+head(welfare) # 맨 위부터 확인
+tail(welfare) # 맨 아래부터 확인
+View(welfare) # 테이블 확인
+dim(welfare)
+str(welfare)
+summary(welfare)
+
+# welfare의 변수(속성)명 변경!
+welfare <- rename(welfare, 
+                  sex = h10_g3,
+                  birth = h10_g4,
+                  marriage = h10_g10,
+                  religion = h10_g11,
+                  income = p1002_8aq1,
+                  code_job = h10_eco9,
+                  code_region = h10_reg7)
+
+str(welfare)
+
+# sas파일을 불러오기 위해 sas7bdat 패키지 불러오기
+# koweps_h11_2016_beta1.sas파일 불러오기기
+install.packages("sas7bdat")
+library(sas7bdat)
+sas_welfare <- read.sas7bdat(file= "koweps_h11_2016_beta1.sas7bdat")
+
+# 복사본 만들기
+welfare_sas <- sas_welfare
+
+# (sex(성별)의 값이 1이라면 male로 아니면 female를 수정)
+welfare$sex <- ifelse(welfare$sex == 1,"male","female")
+str(welfare)
+# 결측치 확인
+table(is.na(welfare$sex))
+# 성별 비율 시각화
+qplot(welfare$sex)
+
+# 연령대 및 성별 월급차이 분석하기
+# 전처리(이상치 확인)
+welfare$income <- ifelse(welfare$income %in% c(0,9999),NA,welfare$income)
+table(is.na(welfare$income))
+# 파생변수 만들기(age변수)
+welfare$age <- 2015-welfare$birth + 1
+summary(welfare$age) # age 상세확인
+qplot(welfare$age) # 시각화
+
+# ------------------------------------------------------------------------------
+
+# 파생변수 만들기(age값에 따른 ageg변수)
+welfare <- welfare %>%
+  mutate(ageg = ifelse(age < 30,"young",
+                       ifelse(age <= 59,"middle",
+                              "old")))
+
+# 연령대 및 성별 월급 평균표 만들기
+# income 변수에 결측치가 없고 ageg변수와 sex변수를 그룹화하여
+# 연령대 및 성별에 따른 평균값을 구한다.
+sex_income <- welfare %>%
+  filter(!is.na(income)) %>%
+  group_by(ageg,sex) %>%
+  summarise(mean_income = mean(income))
+
+sex_income
+
+# 그래프 만들기(시각화1)
+ggplot(data = sex_income,aes(x=ageg,y=mean_income,fill=sex)) + 
+  geom_col() + 
+  scale_x_discrete(limits = c("young","middle","old"))
+
+# 그래프 만들기(시각화2)
+ggplot(data = sex_income,aes(x=ageg,y=mean_income,fill=sex)) + 
+  geom_col(position = "dodge") + 
+  scale_x_discrete(limits = c("young","middle","old"))
